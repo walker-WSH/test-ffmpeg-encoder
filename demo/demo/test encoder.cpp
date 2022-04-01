@@ -228,6 +228,37 @@ void test()
                 }
         }
 
+        while (1)
+        {
+                SET_POSITION;
+                ret = avcodec_send_frame(context, NULL);
+                SET_POSITION;
+                if (ret < 0)
+                {
+                        break;
+                }
+
+                SET_POSITION;
+                ret = avcodec_receive_packet(context, av_pkt);
+                SET_POSITION;
+                av_packet_unref(av_pkt);
+                SET_POSITION;
+
+                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+                        break;
+
+                if (ret < 0)
+                {
+                        break;
+                }
+                if (ret == 0)
+                {
+                        ++count;
+                        printf(".");
+                        SET_POSITION;
+                }
+        }
+
         SET_POSITION;
         printf("\n %d packets \n", count);
         printf("---------- test end-------------- \n\n\n");
