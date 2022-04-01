@@ -93,6 +93,40 @@ void init_data(AVCodecContext* codec_context, AVFrame* frame)
         }
 }
 
+void encode(AVCodecContext* enc_ctx, AVFrame* frame, AVPacket* pkt, bool* got)
+{
+        *got = false;
+        int ret;
+
+        SET_POSITION;
+        ret = avcodec_send_frame(enc_ctx, frame);
+        SET_POSITION;
+        if (ret < 0) {
+                printf("Error sending a frame for encoding \n");
+                return;
+        }
+
+        while (ret >= 0) {
+                SET_POSITION;
+                ret = avcodec_receive_packet(enc_ctx, pkt);
+                SET_POSITION;
+                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+                {
+                        return;
+                }
+                else if (ret < 0) {
+                        printf("Error during encoding \n");
+                        return;
+                }
+
+                SET_POSITION;
+                printf(".");
+                *got = true;
+                av_packet_unref(pkt);
+                SET_POSITION;
+        }
+}
+
 void test()
 {
         SET_POSITION;
@@ -121,6 +155,7 @@ void test()
         AVPacket* av_pkt = av_packet_alloc();
         int ret;
         int count = 0;
+        bool got_packet = false;
 
         SET_POSITION;
         nvenc = avcodec_find_encoder_by_name("hevc_amf");
@@ -202,61 +237,29 @@ void test()
         SET_POSITION;
         for (size_t i = 0; i < 50; i++)
         {
-                int got_packet = false;
-
+                SET_POSITION;
                 init_data(context, vframe);
                 vframe->pts = i;
-
                 SET_POSITION;
-                ret = avcodec_send_frame(context, vframe);
-                if (ret == 0)
-                {
-                        SET_POSITION;
-                        ret = avcodec_receive_packet(context, av_pkt);
-                        SET_POSITION;
-                        av_packet_unref(av_pkt);
-                        SET_POSITION;
-                }
 
+                encode(context, vframe, av_pkt, &got_packet);
                 SET_POSITION;
-                got_packet = (ret == 0);
+
                 if (got_packet)
                 {
-                        ++count;
-                        printf(".");
                         SET_POSITION;
+                        ++count;
                 }
         }
 
-        while (1)
+        SET_POSITION;
+        encode(context, vframe, av_pkt, &got_packet);
+        SET_POSITION;
+        
+        if (got_packet)
         {
                 SET_POSITION;
-                ret = avcodec_send_frame(context, NULL);
-                SET_POSITION;
-                if (ret < 0)
-                {
-                        break;
-                }
-
-                SET_POSITION;
-                ret = avcodec_receive_packet(context, av_pkt);
-                SET_POSITION;
-                av_packet_unref(av_pkt);
-                SET_POSITION;
-
-                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-                        break;
-
-                if (ret < 0)
-                {
-                        break;
-                }
-                if (ret == 0)
-                {
-                        ++count;
-                        printf(".");
-                        SET_POSITION;
-                }
+                ++count;
         }
 
         SET_POSITION;
@@ -275,8 +278,13 @@ fail:
 
         if (context)
         {
-                SET_POSITION;
-                avcodec_close(context);
+/* @note Do not use this function. Use avcodec_free_context() to destroy a
+ * codec context (either open or closed). Opening and closing a codec context
+ * multiple times is not supported anymore -- use multiple codec contexts
+ * instead.
+ */
+                //avcodec_close(context); 
+
                 SET_POSITION;
                 avcodec_free_context(&context);
                 SET_POSITION;
