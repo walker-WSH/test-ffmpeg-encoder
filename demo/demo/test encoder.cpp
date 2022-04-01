@@ -244,6 +244,8 @@ fail:
         if (context)
         {
                 SET_POSITION;
+                avcodec_close(context);
+                SET_POSITION;
                 avcodec_free_context(&context);
                 SET_POSITION;
                 context = nullptr;
