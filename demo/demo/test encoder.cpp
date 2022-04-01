@@ -255,6 +255,8 @@ fail:
         if (vframe)
         {
                 SET_POSITION;
+                av_frame_unref(vframe);
+                SET_POSITION;
                 av_frame_free(&vframe);
                 SET_POSITION;
                 vframe = nullptr;
