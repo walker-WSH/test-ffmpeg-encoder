@@ -213,6 +213,9 @@ void test()
                 {
                         SET_POSITION;
                         ret = avcodec_receive_packet(context, av_pkt);
+                        SET_POSITION;
+                        av_packet_unref(av_pkt);
+                        SET_POSITION;
                 }
 
                 SET_POSITION;
@@ -221,8 +224,6 @@ void test()
                 {
                         ++count;
                         printf(".");
-                        SET_POSITION;
-                        av_packet_unref(av_pkt);
                         SET_POSITION;
                 }
         }
