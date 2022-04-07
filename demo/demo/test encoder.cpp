@@ -12,7 +12,6 @@ extern "C"
 }
 
 //---------------------------------------------------------------------------------
-int line = 0;
 
 #define SET_POSITION line = __LINE__;
 #define ARRAY_COUNT(x) sizeof(x) / sizeof(x[0])
@@ -38,24 +37,38 @@ struct size resolutionList[] = { {1920, 1080}, {1080, 720} };
 const char* qualityList[] = { "balanced","speed", "quality", };
 const char* rcList[] = { "cbr", "cqp", "vbr_peak", "vbr_latency",};
 
+class CTest
+{
+        void init_data(AVCodecContext* codec_context, AVFrame* frame);
+        void encode(AVCodecContext* enc_ctx, AVFrame* frame, AVPacket* pkt, bool* got);
+        void test();
 
-int fps = fpsList[0];
-int keySecond = keySecondList[0];
-int bitrate = bitrateList[0];
-int maxbitrate = maxbitrateList[0];
-int preanalysis = preanalysisList[0];
-int filler_data = filler_dataList[0]; 
-int cqp_i = cqp_i_List[0];
-int cqp_p = cqp_p_List[0];
-enum AVPixelFormat format = formatList[0];
-enum AVColorSpace colorSpace = colorSpaceList[0];
-enum AVColorRange colorRange = colorRangeList[0];
-struct size resolution = resolutionList[0];
-const char* quality = qualityList[0];
-const char* rc = rcList[0];
+public:
+        CTest(bool hevc) : isHEVC(hevc) {}
 
+        void run_test();
 
-void init_data(AVCodecContext* codec_context, AVFrame* frame)
+public:
+        int line = 0;
+        bool isHEVC = true;
+
+        int fps = fpsList[0];
+        int keySecond = keySecondList[0];
+        int bitrate = bitrateList[0];
+        int maxbitrate = maxbitrateList[0];
+        int preanalysis = preanalysisList[0];
+        int filler_data = filler_dataList[0];
+        int cqp_i = cqp_i_List[0];
+        int cqp_p = cqp_p_List[0];
+        enum AVPixelFormat format = formatList[0];
+        enum AVColorSpace colorSpace = colorSpaceList[0];
+        enum AVColorRange colorRange = colorRangeList[0];
+        struct size resolution = resolutionList[0];
+        const char* quality = qualityList[0];
+        const char* rc = rcList[0];
+};
+
+void CTest::init_data(AVCodecContext* codec_context, AVFrame* frame)
 {
         if (format == AV_PIX_FMT_YUV420P)
         {
@@ -93,7 +106,7 @@ void init_data(AVCodecContext* codec_context, AVFrame* frame)
         }
 }
 
-void encode(AVCodecContext* enc_ctx, AVFrame* frame, AVPacket* pkt, bool* got)
+void CTest::encode(AVCodecContext* enc_ctx, AVFrame* frame, AVPacket* pkt, bool* got)
 {
         *got = false;
         int ret;
@@ -127,10 +140,16 @@ void encode(AVCodecContext* enc_ctx, AVFrame* frame, AVPacket* pkt, bool* got)
         }
 }
 
-void test()
+void CTest::test()
 {
         SET_POSITION;
-        printf("================ start test ============== \n");
+        if (isHEVC) {
+                printf("================ start test HEVC ============== \n");
+        }
+        else {
+                printf("================ start test H264 ============== \n");
+        }
+
         printf("%d x %d \n", resolution.x, resolution.y);
         printf("fps : %d \n", fps);
         printf("keySecond : %d \n", keySecond);
@@ -158,7 +177,18 @@ void test()
         bool got_packet = false;
 
         SET_POSITION;
-        nvenc = avcodec_find_encoder_by_name("hevc_amf");
+        if (isHEVC)
+        {
+                SET_POSITION;
+                nvenc = avcodec_find_encoder_by_name("hevc_amf");
+                SET_POSITION;
+        }
+        else {
+                SET_POSITION;
+                nvenc = avcodec_find_encoder_by_name("h264_amf");
+                SET_POSITION;
+        }
+
         if (!nvenc) {
                 printf("Couldn't find encoder \n");
                 goto fail;
@@ -176,10 +206,17 @@ void test()
         if (strcmp(rc, "cqp") == 0)
         {
                 bitrate = 0;
-                av_opt_set_int(context->priv_data, "min_qp_i", cqp_i, 0);
-                av_opt_set_int(context->priv_data, "max_qp_i", cqp_i, 0);
-                av_opt_set_int(context->priv_data, "min_qp_p", cqp_p, 0);
-                av_opt_set_int(context->priv_data, "max_qp_p", cqp_p, 0);
+                if (isHEVC)
+                {
+                        av_opt_set_int(context->priv_data, "min_qp_i", cqp_i, 0);
+                        av_opt_set_int(context->priv_data, "max_qp_i", cqp_i, 0);
+                        av_opt_set_int(context->priv_data, "min_qp_p", cqp_p, 0);
+                        av_opt_set_int(context->priv_data, "max_qp_p", cqp_p, 0);
+                }
+                else {
+                        av_opt_set_int(context->priv_data, "qp_i", cqp_i, 0);
+                        av_opt_set_int(context->priv_data, "qp_p", cqp_p, 0);
+                }
         }
         else if (strcmp(rc, "cbr") == 0)
         {
@@ -263,7 +300,7 @@ void test()
         }
 
         SET_POSITION;
-        printf("\n %d packets \n", count);
+        printf("\n %d packets (%s) \n", count, isHEVC ? "HEVC" : "H264");
         printf("---------- test end-------------- \n\n\n");
 
         //------------------------------------------------------------
@@ -302,44 +339,7 @@ fail:
         }
 }
 
-LONG WINAPI ExceptionFilter(struct _EXCEPTION_POINTERS* pExceptionPointers)
-{
-        printf("crashed! \n");
-
-        SYSTEMTIME st;
-        GetLocalTime(&st);
-
-        char file[256];
-        sprintf_s(file, "crash-%u-%u-%u.txt", st.wHour, st.wMinute, st.wMinute);
-
-        FILE* fp = nullptr;
-        fopen_s(&fp, file, "wb+");
-
-        if (fp)
-        {
-                fprintf(fp, "crashed at : %d \n", line);
-                fprintf(fp, "%d x %d \n", resolution.x, resolution.y);
-                fprintf(fp, "fps : %d \n", fps);
-                fprintf(fp, "keySecond : %d \n", keySecond);
-                fprintf(fp, "bitrate : %d \n", bitrate);
-                fprintf(fp, "maxbitrate : %d \n", maxbitrate);
-                fprintf(fp, "format : %d \n", format);
-                fprintf(fp, "colorSpace : %d \n", colorSpace);
-                fprintf(fp, "colorRange : %d \n", colorRange);
-                fprintf(fp, "preanalysis : %d \n", preanalysis);
-                fprintf(fp, "filler_data : %d \n", filler_data);
-                fprintf(fp, "cqp_i : %d \n", cqp_i);
-                fprintf(fp, "cqp_p : %d \n", cqp_p);
-                fprintf(fp, "quality : %s \n", quality);
-                fprintf(fp, "rc : %s \n", rc);
-
-                fclose(fp);
-        }
-
-        return EXCEPTION_EXECUTE_HANDLER;
-}
-
-void run_test()
+void CTest::run_test()
 {
         printf("=============================================================================================== \n");
         DWORD st = GetTickCount();
@@ -406,15 +406,93 @@ void run_test()
         printf("take %u seconds to test full loop \n", (GetTickCount() - st) / 1000);
 }
 
+CTest testHEVC(true);
+CTest testH264(false);
+DWORD h264Thread = 0;
+DWORD h265Thread = 0;
+
+LONG WINAPI ExceptionFilter(struct _EXCEPTION_POINTERS* pExceptionPointers)
+{
+        printf("crashed! \n");
+
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+
+        char file[256];
+        if (GetCurrentThreadId() == h265Thread)
+        {
+                sprintf_s(file, "crash-HEVC-%u-%u-%u.txt", st.wHour, st.wMinute, st.wMinute);
+        }
+        else
+        {
+                sprintf_s(file, "crash-H264-%u-%u-%u.txt", st.wHour, st.wMinute, st.wMinute);
+        }
+
+        FILE* fp = nullptr;
+        fopen_s(&fp, file, "wb+");
+
+        if (fp)
+        {
+                CTest* test = nullptr;
+
+                if (GetCurrentThreadId() == h265Thread)
+                {
+                        test = &testHEVC;
+                        fprintf(fp, "crashed at HEVC: %d \n", testHEVC.line);
+                }
+                else
+                {
+                        test = &testH264;
+                        fprintf(fp, "crashed at H264: %d \n", testH264.line);
+                }
+                    
+                fprintf(fp, "%d x %d \n", test->resolution.x, test->resolution.y);
+                fprintf(fp, "fps : %d \n", test->fps);
+                fprintf(fp, "keySecond : %d \n", test->keySecond);
+                fprintf(fp, "bitrate : %d \n", test->bitrate);
+                fprintf(fp, "maxbitrate : %d \n", test->maxbitrate);
+                fprintf(fp, "format : %d \n", test->format);
+                fprintf(fp, "colorSpace : %d \n", test->colorSpace);
+                fprintf(fp, "colorRange : %d \n", test->colorRange);
+                fprintf(fp, "preanalysis : %d \n", test->preanalysis);
+                fprintf(fp, "filler_data : %d \n", test->filler_data);
+                fprintf(fp, "cqp_i : %d \n", test->cqp_i);
+                fprintf(fp, "cqp_p : %d \n", test->cqp_p);
+                fprintf(fp, "quality : %s \n", test->quality);
+                fprintf(fp, "rc : %s \n", test->rc);
+
+                fclose(fp);
+        }
+
+        return EXCEPTION_EXECUTE_HANDLER;
+}
+
+DWORD threadFunc(LPVOID lpThreadParameter)
+{
+        if (!!lpThreadParameter)
+                h265Thread = GetCurrentThreadId();
+        else
+                h264Thread = GetCurrentThreadId();
+
+        while (1)
+        {
+                if (lpThreadParameter)
+                        testHEVC.run_test();
+                else
+                        testH264.run_test();
+                
+                Sleep(3000);
+        }
+
+        return 0;
+}
+
 int main(int argc, char** argv)
 {
         SetUnhandledExceptionFilter(ExceptionFilter);
 
-        while (1)
-        {
-                run_test();
-                Sleep(3000);
-        }
+        CreateThread(0, 0, threadFunc, (LPVOID)true, 0, 0);
+        CreateThread(0, 0, threadFunc, (LPVOID)false, 0, 0);
 
         getchar();
         return 0;
