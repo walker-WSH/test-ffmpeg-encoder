@@ -202,7 +202,10 @@ void CTest::test()
         }
 
         SET_POSITION;
+
+        av_opt_set(context->priv_data, "quality", quality, 0);
         av_opt_set(context->priv_data, "rc", rc, 0);
+
         if (strcmp(rc, "cqp") == 0)
         {
                 bitrate = 0;
